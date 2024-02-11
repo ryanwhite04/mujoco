@@ -169,9 +169,9 @@ findorfetch(
   LIBRARY_NAME
   ccd
   GIT_REPO
-  https://github.com/danfis/libccd.git
+  https://github.com/traversaro/libccd.git
   GIT_TAG
-  ${MUJOCO_DEP_VERSION_ccd}
+  c3616f28d33019047e8e71df8abeb0493159539e
   TARGETS
   ccd
   EXCLUDE_FROM_ALL

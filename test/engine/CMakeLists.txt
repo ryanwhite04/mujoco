@@ -30,6 +30,12 @@ target_link_libraries(engine_derivative_test fixture gmock)
 mujoco_test(engine_forward_test)
 target_link_libraries(engine_forward_test fixture gmock)
 
+mujoco_test(engine_inverse_test)
+target_link_libraries(engine_inverse_test fixture gmock)
+
+mujoco_test(engine_island_test)
+target_link_libraries(engine_island_test fixture gmock)
+
 mujoco_test(engine_io_test)
 target_link_libraries(
   engine_io_test
@@ -38,7 +44,12 @@ target_link_libraries(
   absl::str_format
 )
 
-mujoco_test(engine_plugin_test)
+mujoco_test(
+  engine_plugin_test
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
+)
 target_link_libraries(
   engine_plugin_test
   fixture
@@ -61,8 +72,14 @@ target_link_libraries(engine_resource_test fixture gmock)
 mujoco_test(engine_sensor_test)
 target_link_libraries(engine_sensor_test fixture gmock)
 
+mujoco_test(engine_solver_test)
+target_link_libraries(engine_solver_test fixture gmock)
+
 mujoco_test(engine_support_test)
 target_link_libraries(engine_support_test fixture gmock)
+
+mujoco_test(engine_thread_test)
+target_link_libraries(engine_thread_test fixture gmock)
 
 mujoco_test(engine_util_blas_test)
 target_link_libraries(engine_util_blas_test fixture gmock)

@@ -14,7 +14,10 @@
 
 // Tests for engine/engine_derivative.c.
 
+#include <iomanip>
+#include <iostream>
 #include <random>
+#include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -287,11 +290,11 @@ TEST_F(DerivativeTest, StepSkip) {
 static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
   int nv = m->nv, nu = m->nu;
   mjtNum dt = m->opt.timestep;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // === state-transition matrix A
   if (A) {
-    mjtNum *Ac = mj_stackAlloc(d, 2*nv*nv);
+    mjtNum *Ac = mj_stackAllocNum(d, 2*nv*nv);
     // Ac = H^-1 [diag(-stiffness) diag(-damping)]
     mju_zero(Ac, 2*nv*nv);
     for (int i=0; i < nv; i++) {
@@ -321,8 +324,8 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
 
   // === control-transition matrix B
   if (B) {
-    mjtNum *Bc = mj_stackAlloc(d, nu*nv);
-    mjtNum *BcT = mj_stackAlloc(d, nv*nu);
+    mjtNum *Bc = mj_stackAllocNum(d, nu*nv);
+    mjtNum *BcT = mj_stackAllocNum(d, nv*nu);
     mju_copy(Bc, d->actuator_moment, nv*nu);
     mj_solveLD(m, Bc, nu, d->qH, d->qHDiagInv);
     mju_transpose(BcT, Bc, nu, nv);
@@ -330,7 +333,7 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
     mju_scl(B+nu*nv, BcT, dt, nu*nv);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 // compare FD derivatives to analytic derivatives of linear dynamical system

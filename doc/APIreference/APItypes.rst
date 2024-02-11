@@ -41,7 +41,7 @@ MuJoCo defines a large number of types:
 Primitive types
 ---------------
 
-The two types below are defined in `mjtnum.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
+The two types below are defined in `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
 
 
 .. _mjtNum:
@@ -93,7 +93,7 @@ Enum types
 Model
 ^^^^^
 
-The enums below are defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_.
+The enums below are defined in `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_.
 
 
 .. _mjtDisableBit:
@@ -173,18 +173,6 @@ mjtIntegrator
 Numerical integrator types. These values are used in ``m->opt.integrator``.
 
 .. mujoco-include:: mjtIntegrator
-
-
-.. _mjtCollision:
-
-mjtCollision
-~~~~~~~~~~~~
-
-Collision modes specifying how candidate geom pairs are generated for near-phase collision checking. These values are
-used in ``m->opt.collision``.
-
-.. mujoco-include:: mjtCollision
-
 
 .. _mjtCone:
 
@@ -343,7 +331,7 @@ These are the possible sensor data types, used in ``mjData.sensor_datatype``.
 Data
 ^^^^
 
-The enums below are defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_.
+The enums below are defined in `mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_.
 
 
 
@@ -386,7 +374,7 @@ Timer types. The number of timer types is given by ``mjNTIMER`` which is also th
 Visualization
 ^^^^^^^^^^^^^
 
-The enums below are defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+The enums below are defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
 
 
 .. _mjtCatBit:
@@ -490,7 +478,7 @@ These are the possible stereo rendering types. They are used in ``mjvScene.stere
 Rendering
 ^^^^^^^^^
 
-The enums below are defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+The enums below are defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
 
 
 .. _mjtGridPos:
@@ -512,6 +500,18 @@ mjtFramebuffer
 These are the possible framebuffers. They are used as an argument to the function :ref:`mjr_setBuffer`.
 
 .. mujoco-include:: mjtFramebuffer
+
+
+.. _mjtDepthMap:
+
+mjtDepthMap
+~~~~~~~~~~~
+
+These are the depth mapping options. They are used as a value for the ``readPixelDepth`` attribute of the
+:ref:`mjrContext` struct, to control how the depth returned by :ref:`mjr_readPixels` is mapped from
+``znear`` to ``zfar``.
+
+.. mujoco-include:: mjtDepthMap
 
 
 .. _mjtFontScale:
@@ -540,7 +540,7 @@ These are the possible font types.
 User Interface
 ^^^^^^^^^^^^^^
 
-The enums below are defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+The enums below are defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
 
 
 .. _mjtButton:
@@ -578,7 +578,7 @@ Item types used in the UI framework.
 Plugins
 ^^^^^^^
 
-The enums below are defined in `mjplugin.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`_.
+The enums below are defined in `mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`_.
 See :ref:`exPlugin` for details.
 
 
@@ -712,7 +712,26 @@ Options for configuring the automatic :ref:`actuator length-range computation<CL
 
 .. mujoco-include:: mjLROpt
 
+.. _mjTask:
 
+mjTask
+~~~~~~
+
+This is a representation of a task to be run asynchronously inside of an :ref:`mjThreadPool` . It is created in the
+:ref:`mju_threadPoolEnqueue` method of the :ref:`mjThreadPool`  and is used to join the task at completion.
+
+.. mujoco-include:: mjTask
+
+.. _mjThreadPool:
+
+mjThreadPool
+~~~~~~~~~~~~
+
+This is the data structure of the threadpool. It can only be constructed programmatically, and does not
+have an analog in MJCF. In order to enable multi-threaded calculations, a pointer to an existing :ref:`mjThreadPool`
+should be assigned to the ``mjData.threadpool``.
+
+.. mujoco-include:: mjThreadPool
 
 .. _tyStatStructure:
 
@@ -997,8 +1016,8 @@ Function types
 --------------
 
 MuJoCo callbacks have corresponding function types. They are defined in `mjdata.h
-<https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_ and in `mjui.h
-<https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_. The actual callback functions are documented
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_ and in `mjui.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_. The actual callback functions are documented
 in the :doc:`globals<APIglobals>` page.
 
 
@@ -1154,6 +1173,20 @@ mjfGetResourceDir
 
 This callback is for returning the directory of a resource, by setting dir to the directory string with ndir being size
 of directory string.
+
+.. _mjfResourceModified:
+
+mjfResourceModified
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef int (*mjfResourceModified)(const mjResource* resource);
+
+This callback is for checking if a resource was modified since it was last read.
+Returns positive value if the resource was modified since last open, 0 if resource was not modified,
+and negative value if inconclusive.
+
 
 .. _tyNotes:
 

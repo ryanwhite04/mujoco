@@ -42,14 +42,24 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinxcontrib.bibtex',
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
     'sphinx_copybutton',
     'sphinx_favicon',
     'sphinx_reredirects',
     'sphinx_toolbox.collapse',
+    'sphinx_toolbox.github',
+    'sphinx_toolbox.sidebar_links',
     'mujoco_include',
 ]
+
+# GitHub-related options
+github_username = 'google-deepmind'
+github_repository = 'mujoco'
+
+# Bibtex references for sphinxcontrib.bibtex
+bibtex_bibfiles = ['references.bib']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['templates']
@@ -70,6 +80,9 @@ exclude_patterns = [
 redirects = {
     # index.rst just contains the table of contents definition.
     'index': 'overview.html',
+    'computation': 'computation/index.html',
+    'programming': 'programming/index.html',
+    'APIreference': 'APIreference/index.html',
 }
 
 rst_prolog = """

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdalign.h>
+
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -20,8 +22,10 @@
 #include <optional>
 
 #include <Eigen/Core>
+#include <mujoco/mjxmacro.h>
 #include "function_traits.h"
 #include "functions.h"
+#include "private.h"
 #include "raw.h"
 #include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
@@ -122,7 +126,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_resetData>(pymodule);
   Def<traits::mj_resetDataDebug>(pymodule);
   Def<traits::mj_resetDataKeyframe>(pymodule);
-  // Skipped: mj_stackAlloc (doesn't make sense in Python)
+  // Skipped: mj_stackAllocByte (doesn't make sense in Python)
   // Skipped: mj_deleteData (have MjData.__del__)
   Def<traits::mj_resetCallbacks>(pymodule);
   Def<traits::mj_setConst>(pymodule);
@@ -195,6 +199,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_kinematics>(pymodule);
   Def<traits::mj_comPos>(pymodule);
   Def<traits::mj_camlight>(pymodule);
+  Def<traits::mj_flex>(pymodule);
   Def<traits::mj_tendon>(pymodule);
   Def<traits::mj_transmission>(pymodule);
   Def<traits::mj_crb>(pymodule);
@@ -253,6 +258,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_rnePostConstraint>(pymodule);
   Def<traits::mj_collision>(pymodule);
   Def<traits::mj_makeConstraint>(pymodule);
+  Def<traits::mj_island>(pymodule);
   Def<traits::mj_projectConstraint>(pymodule);
   Def<traits::mj_referenceConstraint>(pymodule);
   Def<traits::mj_constraintUpdate>(
@@ -576,6 +582,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_rayHfield>(pymodule);
   Def<traits::mj_rayMesh>(pymodule);
   Def<traits::mju_rayGeom>(pymodule);
+  Def<traits::mju_rayFlex>(pymodule);
   Def<traits::mju_raySkin>(pymodule);
 
   // Interaction
@@ -1326,6 +1333,63 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
   Def<traits::mjd_subQuat>(pymodule);
   Def<traits::mjd_quatIntegrate>(pymodule);
+
+  pymodule.def(
+      "_realloc_con_efc",
+      [](MjDataWrapper& d, int ncon, int nefc) {
+        raw::MjData* data = d.get();
+
+        auto cleanup = [](raw::MjData* data) {
+#ifdef ADDRESS_SANITIZER
+        ASAN_POISON_MEMORY_REGION(
+            static_cast<char*>(data->arena),
+            data->narena - data->pstack);
+#endif
+          data->parena = 0;
+          data->ncon = 0;
+          data->nefc = 0;
+          data->contact = static_cast<raw::MjContact*>(data->arena);
+#define X(type, name, nr, nc) data->name = nullptr;
+          MJDATA_ARENA_POINTERS_PRIMAL
+          MJDATA_ARENA_POINTERS_DUAL
+#undef X
+        };
+
+        cleanup(data);
+        data->ncon = ncon;
+        data->nefc = nefc;
+        data->contact =
+            static_cast<raw::MjContact*>(InterceptMjErrors(::mj_arenaAllocByte)(
+                data, ncon * sizeof(raw::MjContact), alignof(raw::MjContact)));
+        if (!data->contact) {
+          cleanup(data);
+          throw FatalError("insufficient arena memory available");
+        }
+
+#undef MJ_M
+#define MJ_M(x) d.metadata().x
+#undef MJ_D
+#define MJ_D(x) data->x
+#define X(type, name, nr, nc)                                             \
+  data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
+      data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
+  if (!data->name) {                                                      \
+    cleanup(data);                                                        \
+    throw FatalError("insufficient arena memory available");              \
+  }
+
+        MJDATA_ARENA_POINTERS_PRIMAL
+        if (d.metadata().is_dual) {
+          MJDATA_ARENA_POINTERS_DUAL
+        }
+#undef X
+#undef MJ_D
+#define MJ_D(x) x
+#undef MJ_M
+#define MJ_M(x) x
+      },
+      py::arg("d"), py::arg("ncon"), py::arg("nefc"),
+      py::call_guard<py::gil_scoped_release>());
 }  // PYBIND11_MODULE NOLINT(readability/fn_size)
 }  // namespace
 }  // namespace mujoco::python

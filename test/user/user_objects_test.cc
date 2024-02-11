@@ -732,6 +732,103 @@ TEST_F(QuatNorm, QuatNotNormalized) {
   mj_deleteModel(m);
 }
 
+// ------------- test camera specifications ------------------------------------
+
+using CameraSpecTest = MujocoTest;
+
+TEST_F(CameraSpecTest, FovyLimits) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera fovy="180"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull()) << error.data();
+  EXPECT_THAT(error.data(), HasSubstr("fovy too large"));
+  mj_deleteModel(m);
+}
+
+TEST_F(CameraSpecTest, DuplicatedFocalIgnorePixel) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <visual>
+      <map znear="0.01"/>
+    </visual>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera focal="8e-3 8e-3" focalpixel="100 100"
+                resolution="1920 1200" sensorsize="9.6e-3 6e-3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_NEAR(m->cam_intrinsic[0], 5e-4, 1e-6);  // focal length in meters (x)
+  EXPECT_NEAR(m->cam_intrinsic[1], 5e-4, 1e-6);  // focal length in meters (y)
+  mj_deleteModel(m);
+}
+
+TEST_F(CameraSpecTest, FovyFromResolution) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <visual>
+      <map znear="0.01"/>
+    </visual>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <!-- 8mm focal length lenses -->
+        <camera focal="8e-3 8e-3" resolution="1920 1200" sensorsize="9.6e-3 6e-3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_NEAR(m->cam_fovy[0], 41.112, 1e-3);
+  EXPECT_NEAR(m->cam_intrinsic[0], 8e-3, 1e-6);  // focal length in meters (x)
+  EXPECT_NEAR(m->cam_intrinsic[1], 8e-3, 1e-6);  // focal length in meters (y)
+  EXPECT_EQ(m->cam_intrinsic[2], 0);  // principal point in meters (x)
+  EXPECT_EQ(m->cam_intrinsic[3], 0);  // principal point in meters (y)
+  mj_deleteModel(m);
+}
+
+TEST_F(CameraSpecTest, FovyFromResolutionPixel) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <visual>
+      <map znear="0.01"/>
+    </visual>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <!-- 8mm focal length lenses -->
+        <camera focalpixel="1600 1600" resolution="1920 1200" sensorsize="9.6e-3 6e-3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_NEAR(m->cam_fovy[0], 41.112, 1e-3);
+  EXPECT_NEAR(m->cam_intrinsic[0], 8e-3, 1e-6);  // focal length in meters (x)
+  EXPECT_NEAR(m->cam_intrinsic[1], 8e-3, 1e-6);  // focal length in meters (y)
+  EXPECT_EQ(m->cam_intrinsic[2], 0);  // principal point in meters (x)
+  EXPECT_EQ(m->cam_intrinsic[3], 0);  // principal point in meters (y)
+  mj_deleteModel(m);
+}
+
 // ------------- test actuator order -------------------------------------------
 
 using ActuatorTest = MujocoTest;

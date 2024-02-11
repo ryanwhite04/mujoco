@@ -18,6 +18,19 @@ body {
   color: var(--body-color);
 }
 
+/* Make the search bar query text readable in dark theme. */
+body:not([data-theme="light"]) {
+  --color-sidebar-search-foreground: white;
+}
+
+.schema-small {
+  font-size: 93%;
+}
+
+.caption-small {
+  font-size: 85%;
+}
+
 .sidebar-brand-text {
   display: none;
 }
@@ -192,7 +205,7 @@ table.mjcf-attributes tbody tr td,
 table.mjcf-attributes tbody tr:nth-child(2n-1) td {
   border-style: none;
   padding: 0px 0px 0px 0px;
-  width: 33%;
+  width: 25%;
 }
 
 table.mjcf-attributes tbody tr td p {

@@ -77,14 +77,16 @@ the clause:
     self._rect = _render.MjrRect(0, 0, self._width, self._height)
 
     # Create render contexts.
-    self._gl_context = gl_context.GLContext(width, height)
+    # TODO(nimrod): Figure out why pytype doesn't like gl_context.GLContext
+    self._gl_context = gl_context.GLContext(width, height)  # type: ignore
     self._gl_context.make_current()
     self._mjr_context = _render.MjrContext(
-        model, _enums.mjtFontScale.mjFONTSCALE_150
+        model, _enums.mjtFontScale.mjFONTSCALE_150.value
     )
     _render.mjr_setBuffer(
-        _enums.mjtFramebuffer.mjFB_OFFSCREEN, self._mjr_context
+        _enums.mjtFramebuffer.mjFB_OFFSCREEN.value, self._mjr_context
     )
+    self._mjr_context.readDepthMap = _enums.mjtDepthMap.mjDEPTH_ZEROFAR
 
     # Default render flags.
     self._depth_rendering = False
@@ -137,7 +139,9 @@ the clause:
     """
     original_flags = self._scene.flags.copy()
 
-    if self._segmentation_rendering:
+    # Using segmented rendering for depth makes the calculated depth more
+    # accurate at far distances.
+    if self._depth_rendering or self._segmentation_rendering:
       self._scene.flags[_enums.mjtRndFlag.mjRND_SEGMENT] = True
       self._scene.flags[_enums.mjtRndFlag.mjRND_IDCOLOR] = True
 
@@ -172,11 +176,34 @@ the clause:
       near = self._model.vis.map.znear * extent
       far = self._model.vis.map.zfar * extent
 
-      # Convert from [0 1] to depth in units of length, see links below:
-      # http://stackoverflow.com/a/6657284/1461210
-      # https://www.khronos.org/opengl/wiki/Depth_Buffer_Precision
-      out = near / (1 - out * (1 - near / far))
+      # Calculate OpenGL perspective matrix values in float32 precision
+      # so they are close to what glFrustum returns
+      # https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glFrustum.xml
+      zfar = np.float32(far)
+      znear = np.float32(near)
+      c_coef = -(zfar + znear) / (zfar - znear)
+      d_coef = -(np.float32(2) * zfar * znear) / (zfar - znear)
 
+      # In reverse Z mode the perspective matrix is transformed by the following
+      c_coef = np.float32(-0.5) * c_coef - np.float32(0.5)
+      d_coef = np.float32(-0.5) * d_coef
+
+      # We need 64 bits to convert Z from ndc to metric depth without noticeable
+      # losses in precision
+      out_64 = out.astype(np.float64)
+
+      # Undo OpenGL projection
+      # Note: We do not need to take action to convert from window coordinates
+      # to normalized device coordinates because in reversed Z mode the mapping
+      # is identity
+      out_64 = d_coef / (out_64 + c_coef)
+
+      # Cast result back to float32 for backwards compatibility
+      # This has a small accuracy cost
+      out[:] = out_64.astype(np.float32)
+
+      # Reset scene flags.
+      np.copyto(self._scene.flags, original_flags)
     elif self._segmentation_rendering:
       _render.mjr_readPixels(out, None, self._rect, self._mjr_context)
 
@@ -223,19 +250,22 @@ the clause:
       camera: An instance of `MjvCamera`, a string or an integer
       scene_option: A custom `MjvOption` instance to use to render
         the scene instead of the default.
+
+    Raises:
+      ValueError: If `camera_id` is outside the valid range, or if camera does
+        not exist.
     """
     if not isinstance(camera, _structs.MjvCamera):
       camera_id = camera
       if isinstance(camera_id, str):
-        camera_id = _functions.mj_name2id(self._model,
-                                          _enums.mjtObj.mjOBJ_CAMERA, camera_id)
-      if camera_id < -1:
-        raise ValueError('camera_id cannot be smaller than -1.')
-      if camera_id >= self._model.ncam:
-        raise ValueError(
-            f'model has {self._model.ncam} fixed cameras. '
-            f'camera_id={camera_id} is invalid.'
+        camera_id = _functions.mj_name2id(
+            self._model, _enums.mjtObj.mjOBJ_CAMERA.value, camera_id
         )
+        if camera_id == -1:
+          raise ValueError(f'The camera "{camera}" does not exist.')
+      if camera_id < -1 or camera_id >= self._model.ncam:
+        raise ValueError(f'The camera id {camera_id} is out of'
+                         f' range [-1, {self._model.ncam}).')
 
       # Render camera.
       camera = _structs.MjvCamera()
@@ -255,6 +285,6 @@ the clause:
         data,
         scene_option,
         None,
-        camera, _enums.mjtCatBit.mjCAT_ALL,
+        camera, _enums.mjtCatBit.mjCAT_ALL.value,
         self._scene,
     )

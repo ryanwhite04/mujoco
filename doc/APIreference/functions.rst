@@ -244,12 +244,13 @@ mj_jac
 
 .. mujoco-include:: mj_jac
 
-This function computes an "end-effector" Jacobian, which is unrelated to the constraint Jacobian above. Any MuJoCo body
-can be treated as end-effector, and the point for which the Jacobian is computed can be anywhere in space (it is treated
-as attached to the body). The Jacobian has translational (jacp) and rotational (jacr) components. Passing NULL for
-either pointer will skip part of the computation. Each component is a 3-by-nv matrix. Each row of this matrix is the
-gradient of the corresponding 3D coordinate of the specified point with respect to the degrees of freedom. The ability
-to compute end-effector Jacobians analytically is one of the advantages of working in minimal coordinates - so use it!
+This function computes an end-effector kinematic Jacobian, describing the local linear relationship between the
+degrees-of-freedom and a given point. Given a body specified by its integer id (``body``) and a 3D point in the world
+frame (``point``) treated as attached to the body, the Jacobian has both translational (``jacp``) and rotational
+(``jacr``) components. Passing ``NULL`` for either pointer will skip that part of the computation. Each component is a
+3-by-nv matrix. Each row of this matrix is the gradient of the corresponding coordinate of the specified point with
+respect to the degrees-of-freedom. The ability to compute end-effector Jacobians efficiently and analytically is one of
+the advantages of working in minimal coordinates.
 
 .. _mj_jacBody:
 
@@ -412,7 +413,7 @@ mj_differentiatePos
 This function subtracts two vectors in the format of qpos (and divides the result by dt), while respecting the
 properties of quaternions. Recall that unit quaternions represent spatial orientations. They are points on the unit
 sphere in 4D. The tangent to that sphere is a 3D plane of rotational velocities. Thus when we subtract two quaternions
-in the right way, the result is a 3D vector and not a 4D vector. This the output qvel has dimensionality nv while the
+in the right way, the result is a 3D vector and not a 4D vector. Thus the output qvel has dimensionality nv while the
 inputs have dimensionality nq.
 
 .. _mj_integratePos:
@@ -723,6 +724,15 @@ mj_camlight
 
 Compute camera and light positions and orientations.
 
+.. _mj_flex:
+
+mj_flex
+~~~~~~~
+
+.. mujoco-include:: mj_flex
+
+Compute flex-related quantities.
+
 .. _mj_tendon:
 
 mj_tendon
@@ -840,6 +850,15 @@ mj_makeConstraint
 
 Construct constraints.
 
+.. _mj_island:
+
+mj_island
+~~~~~~~~~
+
+.. mujoco-include:: mj_island
+
+Find constraint islands.
+
 .. _mj_projectConstraint:
 
 mj_projectConstraint
@@ -937,6 +956,16 @@ mju_rayGeom
 .. mujoco-include:: mju_rayGeom
 
 Intersect ray with pure geom, return nearest distance or -1 if no intersection.
+
+.. _mju_rayFlex:
+
+mju_rayFlex
+~~~~~~~~~~~
+
+.. mujoco-include:: mju_rayFlex
+
+Intersect ray with flex, return nearest distance or -1 if no intersection,
+and also output nearest vertex id.
 
 .. _mju_raySkin:
 
@@ -1222,12 +1251,41 @@ mj_resetDataKeyframe
 
 Reset data, set fields from specified keyframe.
 
-.. _mj_stackAlloc:
+.. _mj_markStack:
 
-mj_stackAlloc
-~~~~~~~~~~~~~
+mj_markStack
+~~~~~~~~~~~~
 
-.. mujoco-include:: mj_stackAlloc
+.. mujoco-include:: mj_markStack
+
+Mark a new frame on the :ref:`mjData` stack.
+
+.. _mj_freeStack:
+
+mj_freeStack
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_freeStack
+
+Free the current :ref:`mjData` stack frame. All pointers returned by mj_stackAlloc since the last call
+to mj_markStack must no longer be used afterwards.
+
+.. _mj_stackAllocByte:
+
+mj_stackAllocByte
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_stackAllocByte
+
+Allocate a number of bytes on :ref:`mjData` stack at a specific alignment.
+Call mju_error on stack overflow.
+
+.. _mj_stackAllocNum:
+
+mj_stackAllocNum
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_stackAllocNum
 
 Allocate array of mjtNums on :ref:`mjData` stack. Call mju_error on stack overflow.
 
@@ -3217,6 +3275,9 @@ These matrices and their dimensions are:
 - All outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
 - ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
+- Accuracy can be somewhat improved if solver :ref:`iterations<option-iterations>` are set to a
+  fixed (small) value and solver :ref:`tolerance<option-tolerance>` is set to 0. This insures that
+  all calls to the solver will perform exactly the same number of iterations.
 
 .. _mjd_inverseFD:
 
@@ -3393,4 +3454,62 @@ mjp_getResourceProviderAtSlot
 
 Look up a resource provider by slot number returned by mjp_registerResourceProvider.
 If invalid slot number, return NULL.
+
+.. _Thread:
+
+Thread
+^^^^^^
+.. _mju_threadPoolCreate:
+
+mju_threadPoolCreate
+~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_threadPoolCreate
+
+Create a thread pool with the specified number of threads running.
+
+.. _mju_bindThreadPool:
+
+mju_bindThreadPool
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_bindThreadPool
+
+Adds a thread pool to :ref:`mjData` and configures it for multi-threaded use.
+
+.. _mju_threadPoolEnqueue:
+
+mju_threadPoolEnqueue
+~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_threadPoolEnqueue
+
+Enqueue a task in a thread pool.
+
+.. _mju_threadPoolDestroy:
+
+mju_threadPoolDestroy
+~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_threadPoolDestroy
+
+Destroy a thread pool.
+
+.. _mju_defaultTask:
+
+mju_defaultTask
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_defaultTask
+
+Initialize an mjTask.
+
+.. _mju_taskJoin:
+
+mju_taskJoin
+~~~~~~~~~~~~
+
+.. mujoco-include:: mju_taskJoin
+
+Wait for a task to complete.
 

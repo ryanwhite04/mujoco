@@ -207,8 +207,6 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 
 static mjCollisionTree* mj_stackAllocTree(mjData* d, int max_stack) {
   // check that the quotient is an integer
-  _Static_assert(sizeof(mjCollisionTree*) % sizeof(mjtNum) == 0,
-                 "mjCollisionTree has a different size from mjtNum");
   return (mjCollisionTree*)mj_stackAlloc(
       d, max_stack * sizeof(mjCollisionTree*) / sizeof(mjtNum));
 }

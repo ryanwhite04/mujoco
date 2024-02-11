@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-#include "lodepng.h"
+// #include "lodepng.h"
 #include <mujoco/mjmodel.h>
 
 // forward declarations of all mjC/X classes

@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-#include "lodepng.h"
+// #include "lodepng.h"
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
@@ -2043,44 +2043,45 @@ void mjCHField::LoadCustom(mjResource* resource) {
 // load elevation data from PNG format
 void mjCHField::LoadPNG(mjResource* resource) {
   // determine data source
-  const void* inbuffer = 0;
-  int inbuffer_sz = mju_readResource(resource, &inbuffer);
+  // const void* inbuffer = 0;
+  // int inbuffer_sz = mju_readResource(resource, &inbuffer);
 
-  if (inbuffer_sz < 1) {
-    throw mjCError(this, "could not read hfield PNG file '%s'", resource->name);
-  }
+  // if (inbuffer_sz < 1) {
+  //   throw mjCError(this, "could not read hfield PNG file '%s'", resource->name);
+  // }
 
-  if (!inbuffer_sz) {
-    throw mjCError(this, "empty hfield PNG file '%s'", resource->name);
-  }
+  // if (!inbuffer_sz) {
+  //   throw mjCError(this, "empty hfield PNG file '%s'", resource->name);
+  // }
 
-  // load PNG from file or memory
-  unsigned int w, h, err;
-  std::vector<unsigned char> image;
-  err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_GREY, 8);
+  // // load PNG from file or memory
+  // unsigned int w, h, err;
+  // std::vector<unsigned char> image;
+  // err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_GREY, 8);
 
-  // check
-  if (err) {
-    throw mjCError(this, "PNG load error '%s' in hfield id = %d", lodepng_error_text(err), id);
-  }
-  if (!w || !h) {
-    throw mjCError(this, "Zero dimension in PNG hfield '%s' (id = %d)", resource->name, id);
-  }
+  // // check
+  // if (err) {
+  //   throw mjCError(this, "PNG load error '%s' in hfield id = %d", lodepng_error_text(err), id);
+  // }
+  // if (!w || !h) {
+  //   throw mjCError(this, "Zero dimension in PNG hfield '%s' (id = %d)", resource->name, id);
+  // }
 
-  // allocate
-  data = (float*) mju_malloc(w*h*sizeof(float));
-  if (!data) {
-    throw mjCError(this, "could not allocate buffers in hfield");
-  }
+  // // allocate
+  // data = (float*) mju_malloc(w*h*sizeof(float));
+  // if (!data) {
+  //   throw mjCError(this, "could not allocate buffers in hfield");
+  // }
 
-  // assign and copy
-  ncol = w;
-  nrow = h;
-  for (int c=0; c<ncol; c++)
-    for (int r=0; r<nrow; r++) {
-      data[c+(nrow-1-r)*ncol] = (float)image[c+r*ncol];
-    }
-  image.clear();
+  // // assign and copy
+  // ncol = w;
+  // nrow = h;
+  // for (int c=0; c<ncol; c++)
+  //   for (int r=0; r<nrow; r++) {
+  //     data[c+(nrow-1-r)*ncol] = (float)image[c+r*ncol];
+  //   }
+  // image.clear();
+  return;
 }
 
 
@@ -2436,28 +2437,29 @@ void mjCTexture::BuiltinCube(void) {
 void mjCTexture::LoadPNG(mjResource* resource,
                          std::vector<unsigned char>& image,
                          unsigned int& w, unsigned int& h) {
-  const void* inbuffer = 0;
-  int inbuffer_sz = mju_readResource(resource, &inbuffer);
+  // const void* inbuffer = 0;
+  // int inbuffer_sz = mju_readResource(resource, &inbuffer);
 
-  // still not found
-  if (inbuffer_sz < 1) {
-    throw mjCError(this, "could not read PNG texture file '%s'", resource->name);
-  } else if (!inbuffer_sz) {
-    throw mjCError(this, "PNG texture file '%s' is empty", resource->name);
-  }
+  // // still not found
+  // if (inbuffer_sz < 1) {
+  //   throw mjCError(this, "could not read PNG texture file '%s'", resource->name);
+  // } else if (!inbuffer_sz) {
+  //   throw mjCError(this, "PNG texture file '%s' is empty", resource->name);
+  // }
 
 
-  // load PNG from file or memory
-  unsigned int err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_RGB, 8);
+  // // load PNG from file or memory
+  // unsigned int err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_RGB, 8);
 
-  // check
-  if (err) {
-    throw mjCError(this,
-                   "PNG file load error '%s' in texture id = %d", lodepng_error_text(err), id);
-  }
-  if (w<1 || h<1) {
-    throw mjCError(this, "Empty PNG file in texture '%s' (id %d)", resource->name, id);
-  }
+  // // check
+  // if (err) {
+  //   throw mjCError(this,
+  //                  "PNG file load error '%s' in texture id = %d", lodepng_error_text(err), id);
+  // }
+  // if (w<1 || h<1) {
+  //   throw mjCError(this, "Empty PNG file in texture '%s' (id %d)", resource->name, id);
+  // }
+  return;
 }
 
 

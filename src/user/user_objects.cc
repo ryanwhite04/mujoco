@@ -507,6 +507,23 @@ mjResource* mjCBase::LoadResource(string filename, int provider) {
 }
 
 
+// Get and sanitize content type from raw_text if not empty, otherwise parse
+// content type from resource_name; throw error on failure
+std::string mjCBase::GetAssetContentType(std::string_view resource_name,
+                                         std::string_view raw_text) {
+  if (!raw_text.empty()) {
+    auto type = mjuu_parseContentTypeAttrType(raw_text);
+    auto subtype = mjuu_parseContentTypeAttrSubtype(raw_text);
+    if (!type.has_value() || !subtype.has_value()) {
+      throw mjCError(this, "invalid format for content_type");
+    }
+    return std::string(*type) + "/" + std::string(*subtype);
+  } else {
+    return mjuu_extToContentType(resource_name);
+  }
+}
+
+
 //------------------ class mjCBody implementation --------------------------------------------------
 
 // constructor
@@ -1042,9 +1059,12 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   mjuu_setvec(pos, 0, 0, 0);
   mjuu_setvec(axis, 0, 0, 1);
   limited = 2;
+  actfrclimited = 2;
   stiffness = 0;
   range[0] = 0;
   range[1] = 0;
+  actfrcrange[0] = 0;
+  actfrcrange[1] = 0;
   springdamper[0] = 0;
   springdamper[1] = 0;
   mj_defaultSolRefImp(solref_limit, solimp_limit);
@@ -1126,6 +1146,27 @@ int mjCJoint::Compile(void) {
       if (range[1]) {
         range[1] *= mjPI/180.0;
       }
+    }
+  }
+
+  // actuator force range: none for free or ball joints
+  if (type==mjJNT_FREE || type==mjJNT_BALL) {
+    actfrclimited = 0;
+  }
+  // otherwise if actfrclimited is auto, set according to whether actfrcrange is specified
+  else if (actfrclimited==2) {
+    bool hasrange = !(actfrcrange[0]==0 && actfrcrange[1]==0);
+    checklimited(this, model->autolimits, "joint", "", actfrclimited, hasrange);
+    actfrclimited = hasrange ? 1 : 0;
+  }
+
+  // resolve actuator force range limits
+  if (actfrclimited) {
+    // check data
+    if (actfrcrange[0]>=actfrcrange[1]) {
+      throw mjCError(this,
+                     "actfrcrange[0] should be smaller than actfrcrange[1] in joint '%s' (id = %d)",
+                     name.c_str(), id);
     }
   }
 
@@ -1717,6 +1758,11 @@ void mjCGeom::Compile(void) {
     size[2] = mjMAX(fabs(aabb[2]), fabs(aabb[5]));
   }
 
+  for (double s : size) {
+    if (std::isnan(s)) {
+      throw mjCError(this, "nan size in geom '%s' (id = %d)", name.c_str(), id);
+    }
+  }
   // compute aabb
   ComputeAABB();
 
@@ -2144,15 +2190,22 @@ void mjCHField::Compile(int vfs_provider) {
                      "hfield '%s' (id = %d) specified from file and manually", name.c_str(), id);
     }
 
-    // make filename
+    std::string asset_type = GetAssetContentType(file, content_type);
+
+    // fallback to custom
+    if (asset_type.empty()) {
+      asset_type = "image/vnd.mujoco.hfield";
+    }
+
+    if (asset_type != "image/png" && asset_type != "image/vnd.mujoco.hfield") {
+      throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
+    }
+
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
     mjResource* resource = LoadResource(filename, vfs_provider);
 
-    // load depending on format
-    string ext = mjuu_getext(filename);
-
     try {
-      if (!strcasecmp(ext.c_str(), ".png")) {
+      if (asset_type == "image/png") {
         LoadPNG(resource);
       } else {
         LoadCustom(resource);
@@ -2543,15 +2596,24 @@ void mjCTexture::LoadCustom(mjResource* resource,
 void mjCTexture::LoadFlip(string filename, int vfs_provider,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
-  // dispatch to PNG or Custom loaded
-  string ext = mjuu_getext(filename);
+  std::string asset_type = GetAssetContentType(filename, content_type);
+
+  // fallback to custom
+  if (asset_type.empty()) {
+    asset_type = "image/vnd.mujoco.texture";
+  }
+
+  if (asset_type != "image/png" && asset_type != "image/vnd.mujoco.texture") {
+    throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
+  }
+
   mjResource* resource = LoadResource(filename, vfs_provider);
 
   try {
-    if (!strcasecmp(ext.c_str(), ".png")) {
-     LoadPNG(resource, image, w, h);
+    if (asset_type == "image/png") {
+      LoadPNG(resource, image, w, h);
     } else {
-     LoadCustom(resource, image, w, h);
+      LoadCustom(resource, image, w, h);
     }
     mju_closeResource(resource);
   } catch(mjCError err) {
@@ -3986,6 +4048,7 @@ void mjCSensor::Compile(void) {
 
   case mjSENS_JOINTPOS:
   case mjSENS_JOINTVEL:
+  case mjSENS_JOINTACTFRC:
     // must be attached to joint
     if (objtype!=mjOBJ_JOINT) {
       throw mjCError(this,
@@ -4003,8 +4066,10 @@ void mjCSensor::Compile(void) {
     datatype = mjDATATYPE_REAL;
     if (type==mjSENS_JOINTPOS) {
       needstage = mjSTAGE_POS;
-    } else {
+    } else if (type==mjSENS_JOINTVEL) {
       needstage = mjSTAGE_VEL;
+    } else if (type==mjSENS_JOINTACTFRC) {
+      needstage = mjSTAGE_ACC;
     }
     break;
 

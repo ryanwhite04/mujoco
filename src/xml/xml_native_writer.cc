@@ -59,11 +59,15 @@ class mj_XMLPrinter : public tinyxml2::XMLPrinter {
 
 
 // save XML file using custom 2-space indentation
-tinyxml2::XMLError SaveFile(XMLDocument& doc, FILE* fp) {
+static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
   doc.ClearError();
-  mj_XMLPrinter stream(fp, /*compact=*/false);
+  mj_XMLPrinter stream(nullptr, /*compact=*/false);
   doc.Print(&stream);
-  return doc.ErrorID();
+  if (doc.ErrorID()) {
+    mjCopyError(error, doc.ErrorStr(), error_sz);
+    return "";
+  }
+  return string(stream.CStr());
 }
 
 
@@ -86,6 +90,7 @@ void mjXWriter::OneMesh(XMLElement* elem, mjCMesh* pmesh, mjCDef* def) {
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", pmesh->name);
     WriteAttrTxt(elem, "class", pmesh->classname);
+    WriteAttrTxt(elem, "content_type", pmesh->content_type);
     WriteAttrTxt(elem, "file", pmesh->file);
 
     // write vertex data
@@ -220,6 +225,12 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
   if (writingdefaults || !limited_inferred) {
     WriteAttrKey(elem, "limited", TFAuto_map, 3, pjoint->limited, def->joint.limited);
   }
+  bool afrange_defined = pjoint->actfrcrange[0]!=0 || pjoint->actfrcrange[1]!=0;
+  bool aflimited_inferred = def->joint.actfrclimited==2 && pjoint->actfrclimited==afrange_defined;
+  if (writingdefaults || !aflimited_inferred) {
+    WriteAttrKey(elem, "actutorforcelimited", TFAuto_map, 3,
+                 pjoint->actfrclimited, def->joint.actfrclimited);
+  }
 
   // defaults and regular
   if (pjoint->type != def->joint.type) {
@@ -234,6 +245,7 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
   WriteAttr(elem, "solimpfriction", mjNIMP, pjoint->solimp_friction, def->joint.solimp_friction);
   WriteAttr(elem, "stiffness", 1, &pjoint->stiffness, &def->joint.stiffness);
   WriteAttr(elem, "range", 2, pjoint->range, def->joint.range);
+  WriteAttr(elem, "actuatorforcerange", 2, pjoint->actfrcrange, def->joint.actfrcrange);
   WriteAttr(elem, "margin", 1, &pjoint->margin, &def->joint.margin);
   WriteAttr(elem, "armature", 1, &pjoint->armature, &def->joint.armature);
   WriteAttr(elem, "damping", 1, &pjoint->damping, &def->joint.damping);
@@ -682,10 +694,11 @@ mjXWriter::mjXWriter(void) {
 
 
 // save existing model in MJCF canonical format, must be compiled
-void mjXWriter::Write(FILE* fp) {
+string mjXWriter::Write(char *error, size_t error_sz) {
   // check model
   if (!model || !model->IsCompiled()) {
-    throw mjXError(0, "XML Write error: Only compiled model can be written");
+    mjCopyError(error, "XML Write error: Only compiled model can be written", error_sz);
+    return "";
   }
 
   // create document and root
@@ -722,8 +735,7 @@ void mjXWriter::Write(FILE* fp) {
   Sensor(root);
   Keyframe(root);
 
-  // save file
-  SaveFile(doc, fp);
+  return WriteDoc(doc, error, error_sz);
 }
 
 
@@ -1251,9 +1263,10 @@ void mjXWriter::Asset(XMLElement* root) {
       WriteAttrInt(elem, "height", ptex->height);
     }
 
-    // write texures loaded from files
+    // write textures loaded from files
     else {
-      // write singe file
+      // write single file
+      WriteAttrTxt(elem, "content_type", ptex->content_type);
       WriteAttrTxt(elem, "file", ptex->file);
 
       // write separate files
@@ -1313,6 +1326,7 @@ void mjXWriter::Asset(XMLElement* root) {
     WriteAttrTxt(elem, "name", phf->name);
     WriteAttr(elem, "size", 4, phf->size);
     if (!phf->file.empty()) {
+      WriteAttrTxt(elem, "content_type", phf->content_type);
       WriteAttrTxt(elem, "file", phf->file);
     } else {
       WriteAttrInt(elem, "nrow", phf->nrow);
@@ -1390,7 +1404,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
 
   // write plugin
   if (body->is_plugin) {
-    OnePlugin(elem, body);
+    OnePlugin(InsertEnd(elem, "plugin"), body);
   }
 
   // write child bodies recursively
@@ -1637,6 +1651,10 @@ void mjXWriter::Sensor(XMLElement* root) {
     case mjSENS_ACTUATORFRC:
       elem = InsertEnd(section, "actuatorfrc");
       WriteAttrTxt(elem, "actuator", psen->objname);
+      break;
+    case mjSENS_JOINTACTFRC:
+      elem = InsertEnd(section, "jointactuatorfrc");
+      WriteAttrTxt(elem, "joint", psen->objname);
       break;
 
     // sensors related to ball joints

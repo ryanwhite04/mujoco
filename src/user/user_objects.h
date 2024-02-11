@@ -173,6 +173,10 @@ class mjCBase {
   // load resource if found (fallback to OS filesystem)
   mjResource* LoadResource(std::string filename, int provider);
 
+  // Get and sanitize content type from raw_text if not empty, otherwise parse
+  // content type from resource_name; throw on failure
+  std::string GetAssetContentType(std::string_view resource_name, std::string_view raw_text);
+
   std::string name;               // object name
   std::string classname;          // defaults class name
   int id;                         // object id
@@ -292,11 +296,13 @@ class mjCJoint : public mjCBase {
   mjtJoint type;                  // type of Joint
   int group;                      // used for rendering
   int limited;                    // does joint have limits: 0 false, 1 true, 2 auto
+  int actfrclimited;              // are actuator forces on joints limited: 0 false, 1 true, 2 auto
   double pos[3];                  // anchor position
   double axis[3];                 // joint axis
   double stiffness;               // stiffness coefficient
   double springdamper[2];         // timeconst, dampratio
   double range[2];                // joint limits
+  double actfrcrange[2];          // actuator force limits
   mjtNum solref_limit[mjNREF];    // solver reference: joint limits
   mjtNum solimp_limit[mjNIMP];    // solver impedance: joint limits
   mjtNum solref_friction[mjNREF]; // solver reference: dof friction
@@ -529,6 +535,7 @@ class mjCMesh: public mjCBase {
   // returns a bounding volume given a face
   mjCBoundingVolume GetBoundingVolume(int faceid);
 
+  std::string content_type;           // content type of file
   std::string file;                   // mesh file
   double refpos[3];                   // reference position (translate)
   double refquat[4];                  // reference orientation (rotate)
@@ -652,6 +659,7 @@ class mjCHField : public mjCBase {
   friend class mjXWriter;
 
  public:
+  std::string content_type;       // content type of file
   std::string file;               // file: (nrow, ncol, [elevation data])
   double size[4];                 // hfield size (ignore referencing geom size)
   int nrow;                       // number of rows
@@ -691,6 +699,7 @@ class mjCTexture : public mjCBase {
   int width;                      // width in pixels
 
   // method 2: single file
+  std::string content_type;       // content type of file
   std::string file;               // png file to load; use for all sides of cube
   int gridsize[2];                // size of grid for composite file; (1,1)-repeat
   char gridlayout[13];            // row-major: L,R,F,B,U,D for faces; . for unused

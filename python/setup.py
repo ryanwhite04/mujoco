@@ -32,7 +32,7 @@ from setuptools import setup
 from setuptools.command import build_ext
 from setuptools.command import install_scripts
 
-__version__ = '2.3.6'
+__version__ = '2.3.7'
 
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
@@ -363,7 +363,6 @@ SETUP_KWARGS = dict(
         'License :: OSI Approved :: Apache Software License',
         'Natural Language :: English',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
@@ -385,7 +384,7 @@ SETUP_KWARGS = dict(
         CMakeExtension('mujoco._simulate'),
         CMakeExtension('mujoco._structs'),
     ],
-    python_requires='>=3.7',
+    python_requires='>=3.8',
     install_requires=[
         'absl-py',
         'glfw',

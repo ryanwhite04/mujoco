@@ -52,6 +52,7 @@ SIM_REFRESH_FRACTION = 0.7
 
 CallbackType = Callable[[mujoco.MjModel, mujoco.MjData], None]
 LoaderType = Callable[[], Tuple[mujoco.MjModel, mujoco.MjData]]
+KeyCallbackType = Callable[[int], None]
 
 # Loader function that also returns a file path for the GUI to display.
 _LoaderWithPathType = Callable[[], Tuple[mujoco.MjModel, mujoco.MjData, str]]
@@ -96,7 +97,7 @@ class Handle:
   def close(self):
     sim = self._sim()
     if sim is not None:
-      sim.exitrequest = 1
+      sim.exit()
 
   def is_running(self) -> bool:
     sim = self._sim()
@@ -113,8 +114,22 @@ class Handle:
   def sync(self):
     sim = self._sim()
     if sim is not None:
-      with sim.lock():
-        sim.sync()
+      sim.sync()  # locks internally
+
+  def update_hfield(self, hfieldid: int):
+    sim = self._sim()
+    if sim is not None:
+      sim.update_hfield(hfieldid)  # locks internally and blocks until done
+
+  def update_mesh(self, meshid: int):
+    sim = self._sim()
+    if sim is not None:
+      sim.update_mesh(meshid)  # locks internally and blocks until done
+
+  def update_texture(self, texid: int):
+    sim = self._sim()
+    if sim is not None:
+      sim.update_texture(texid)  # locks internally and blocks until done
 
   def __enter__(self):
     return self
@@ -128,8 +143,15 @@ class Handle:
 # Python launcher (mjpython) to implement the required dispatching mechanism.
 class _MjPythonBase(metaclass=abc.ABCMeta):
 
-  def launch_on_ui_thread(self, model: mujoco.MjModel, data: mujoco.MjData):
+  def launch_on_ui_thread(
+      self,
+      model: mujoco.MjModel,
+      data: mujoco.MjData,
+      handle_return: Optional['queue.Queue[Handle]'],
+      key_callback: Optional[KeyCallbackType],
+  ):
     pass
+
 
 # When running under mjpython, the launcher initializes this object.
 _MJPYTHON: Optional[_MjPythonBase] = None
@@ -285,6 +307,7 @@ def _launch_internal(
     run_physics_thread: bool,
     loader: Optional[_InternalLoaderType] = None,
     handle_return: Optional['queue.Queue[Handle]'] = None,
+    key_callback: Optional[KeyCallbackType] = None,
 ) -> None:
   """Internal API, so that the public API has more readable type annotations."""
   if model is None and data is not None:
@@ -313,7 +336,7 @@ def _launch_internal(
   cam = mujoco.MjvCamera()
   opt = mujoco.MjvOption()
   pert = mujoco.MjvPerturb()
-  simulate = _Simulate(scn, cam, opt, pert, run_physics_thread)
+  simulate = _Simulate(scn, cam, opt, pert, run_physics_thread, key_callback)
 
   # Initialize GLFW if not using mjpython.
   if _MJPYTHON is None:
@@ -334,18 +357,19 @@ def _launch_internal(
     side_thread = threading.Thread(
         target=_reload, args=(simulate, loader, notify_loaded))
 
-  def make_exit_requester(simulate):
-    def exit_requester():
-      simulate.exitrequest = True
-    return exit_requester
+  def make_exit(simulate):
+    def exit_simulate():
+      simulate.exit()
+    return exit_simulate
 
-  exit_requester = make_exit_requester(simulate)
-  atexit.register(exit_requester)
+  exit_simulate = make_exit(simulate)
+  atexit.register(exit_simulate)
 
   side_thread.start()
   simulate.render_loop()
-  atexit.unregister(exit_requester)
+  atexit.unregister(exit_simulate)
   side_thread.join()
+  simulate.destroy()
 
 
 def launch(model: Optional[mujoco.MjModel] = None,
@@ -362,12 +386,20 @@ def launch_from_path(path: str) -> None:
   _launch_internal(run_physics_thread=True, loader=_file_loader(path))
 
 
-def launch_passive(model: mujoco.MjModel, data: mujoco.MjData) -> Handle:
+def launch_passive(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+    *,
+    key_callback: Optional[KeyCallbackType] = None,
+) -> Handle:
   """Launches a passive Simulate GUI without blocking the running thread."""
   if not isinstance(model, mujoco.MjModel):
     raise ValueError(f'`model` is not a mujoco.MjModel: got {model!r}')
   if not isinstance(data, mujoco.MjData):
     raise ValueError(f'`data` is not a mujoco.MjData: got {data!r}')
+  if key_callback is not None and not callable(key_callback):
+    raise ValueError(
+        f'`key_callback` is not callable: got {key_callback!r}')
 
   mujoco.mj_forward(model, data)
   handle_return = queue.Queue(1)
@@ -376,7 +408,11 @@ def launch_passive(model: mujoco.MjModel, data: mujoco.MjData) -> Handle:
     thread = threading.Thread(
         target=_launch_internal,
         args=(model, data),
-        kwargs=dict(run_physics_thread=False, handle_return=handle_return),
+        kwargs=dict(
+            run_physics_thread=False,
+            handle_return=handle_return,
+            key_callback=key_callback,
+        ),
     )
     thread.daemon = True
     thread.start()
@@ -385,7 +421,7 @@ def launch_passive(model: mujoco.MjModel, data: mujoco.MjData) -> Handle:
       raise RuntimeError(
           '`launch_passive` requires that the Python script be run under '
           '`mjpython` on macOS')
-    _MJPYTHON.launch_on_ui_thread(model, data, handle_return)
+    _MJPYTHON.launch_on_ui_thread(model, data, handle_return, key_callback)
 
   return handle_return.get()
 

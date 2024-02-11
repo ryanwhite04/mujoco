@@ -105,7 +105,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 236;
+public const int mjVERSION_HEADER = 237;
 
 
 // ------------------------------------Enums------------------------------------
@@ -325,29 +325,30 @@ public enum mjtSensor : int{
   mjSENS_ACTUATORPOS = 12,
   mjSENS_ACTUATORVEL = 13,
   mjSENS_ACTUATORFRC = 14,
-  mjSENS_BALLQUAT = 15,
-  mjSENS_BALLANGVEL = 16,
-  mjSENS_JOINTLIMITPOS = 17,
-  mjSENS_JOINTLIMITVEL = 18,
-  mjSENS_JOINTLIMITFRC = 19,
-  mjSENS_TENDONLIMITPOS = 20,
-  mjSENS_TENDONLIMITVEL = 21,
-  mjSENS_TENDONLIMITFRC = 22,
-  mjSENS_FRAMEPOS = 23,
-  mjSENS_FRAMEQUAT = 24,
-  mjSENS_FRAMEXAXIS = 25,
-  mjSENS_FRAMEYAXIS = 26,
-  mjSENS_FRAMEZAXIS = 27,
-  mjSENS_FRAMELINVEL = 28,
-  mjSENS_FRAMEANGVEL = 29,
-  mjSENS_FRAMELINACC = 30,
-  mjSENS_FRAMEANGACC = 31,
-  mjSENS_SUBTREECOM = 32,
-  mjSENS_SUBTREELINVEL = 33,
-  mjSENS_SUBTREEANGMOM = 34,
-  mjSENS_CLOCK = 35,
-  mjSENS_PLUGIN = 36,
-  mjSENS_USER = 37,
+  mjSENS_JOINTACTFRC = 15,
+  mjSENS_BALLQUAT = 16,
+  mjSENS_BALLANGVEL = 17,
+  mjSENS_JOINTLIMITPOS = 18,
+  mjSENS_JOINTLIMITVEL = 19,
+  mjSENS_JOINTLIMITFRC = 20,
+  mjSENS_TENDONLIMITPOS = 21,
+  mjSENS_TENDONLIMITVEL = 22,
+  mjSENS_TENDONLIMITFRC = 23,
+  mjSENS_FRAMEPOS = 24,
+  mjSENS_FRAMEQUAT = 25,
+  mjSENS_FRAMEXAXIS = 26,
+  mjSENS_FRAMEYAXIS = 27,
+  mjSENS_FRAMEZAXIS = 28,
+  mjSENS_FRAMELINVEL = 29,
+  mjSENS_FRAMEANGVEL = 30,
+  mjSENS_FRAMELINACC = 31,
+  mjSENS_FRAMEANGACC = 32,
+  mjSENS_SUBTREECOM = 33,
+  mjSENS_SUBTREELINVEL = 34,
+  mjSENS_SUBTREEANGMOM = 35,
+  mjSENS_CLOCK = 36,
+  mjSENS_PLUGIN = 37,
+  mjSENS_USER = 38,
 }
 public enum mjtStage : int{
   mjSTAGE_NONE = 0,
@@ -1987,12 +1988,14 @@ public unsafe struct mjModel_ {
   public int* jnt_bodyid;
   public int* jnt_group;
   public byte* jnt_limited;
+  public byte* jnt_actfrclimited;
   public double* jnt_solref;
   public double* jnt_solimp;
   public double* jnt_pos;
   public double* jnt_axis;
   public double* jnt_stiffness;
   public double* jnt_range;
+  public double* jnt_actfrcrange;
   public double* jnt_margin;
   public double* jnt_user;
   public int* dof_bodyid;
@@ -3386,6 +3389,9 @@ public static unsafe extern void mjv_initGeom(mjvGeom_* geom, int type, double* 
 public static unsafe extern void mjv_makeConnector(mjvGeom_* geom, int type, double width, double a0, double a1, double a2, double b0, double b1, double b2);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_connector(mjvGeom_* geom, int type, double width, double* from, double* to);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_defaultScene(mjvScene_* scn);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3862,5 +3868,11 @@ public static unsafe extern void mjd_transitionFD(mjModel_* m, mjData_* d, doubl
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjd_inverseFD(mjModel_* m, mjData_* d, double eps, byte flg_actuation, double* DfDq, double* DfDv, double* DfDa, double* DsDq, double* DsDv, double* DsDa, double* DmDq);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjd_subQuat(double* qa, double* qb, double* Da, double* Db);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjd_quatIntegrate(double* vel, double scale, double* Dquat, double* Dvel, double* Dscale);
 }
 }

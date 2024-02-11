@@ -113,6 +113,12 @@ attributes:
   also transfers user inputs from the GUI back into ``mjOption`` (inside ``mjModel``) and ``mjData``, including
   enable/disable flags, control inputs, and mouse perturbations.
 
+- ``update_hfield(hfieldid)``: updates the height field data at the specified ``hfieldid`` for subsequent renderings.
+
+- ``update_mesh(meshid)``: updates the mesh data at the specified ``meshid`` for subsequent renderings.
+
+- ``update_texture(texid)``: updates the texture data at the specified ``texid`` for subsequent renderings.
+
 - ``close()``: programmatically closes the viewer window. This method can be safely called without locking.
 
 - ``is_running()``: returns ``True`` if the viewer window is running and ``False`` if it is closed.
@@ -153,6 +159,29 @@ illustrative example that does **not** necessarily keep the physics ticking at t
       time_until_next_step = m.opt.timestep - (time.time() - step_start)
       if time_until_next_step > 0:
         time.sleep(time_until_next_step)
+
+Optionally, ``viewer.launch_passive`` also accepts a callable as a keyword argument ``key_callback``, which gets called
+each time a keyboard event occurs in the viewer window. This allows user scripts to react to various key presses, e.g.
+pause or resume the run loop when the spacebar is pressed.
+
+.. code-block:: python
+
+  paused = False
+
+  def key_callback(keycode):
+    if chr(keycode) == ' ':
+      global paused
+      paused = not paused
+
+  ...
+
+  with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
+    while viewer.is_running():
+      ...
+      if not paused:
+        mujoco.mj_step(m, d)
+        viewer.sync()
+      ...
 
 
 .. _PyUsage:
@@ -534,7 +563,7 @@ Building from source
    .. code-block:: shell
 
       cd dist
-      MUJOCO_PATH=/PATH/TO/MUJOCO pip install mujoco-x.y.z.tar.gz
+      MUJOCO_PATH=/PATH/TO/MUJOCO MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN pip install mujoco-x.y.z.tar.gz
 
 The Python bindings should now be installed! To check that they've been
 successfully installed, ``cd`` outside of the ``mujoco`` directory and run

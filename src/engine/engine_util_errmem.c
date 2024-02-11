@@ -106,7 +106,7 @@ void mju_writeLog(const char* type, const char* msg) {
     // get time
     time(&rawtime);
 
-#if defined(_POSIX_C_SOURCE) || defined(__APPLE__) || defined(__STDC_VERSION_TIME_H__)
+#if defined(_POSIX_C_SOURCE) || defined(__APPLE__) || defined(__EMSCRIPTEN__) || defined(__STDC_VERSION_TIME_H__)
     localtime_r(&rawtime, &timeinfo);
 #elif _MSC_VER
     localtime_s(&timeinfo, &rawtime);

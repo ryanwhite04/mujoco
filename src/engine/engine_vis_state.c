@@ -22,13 +22,16 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_vis_init.h"
 #include "engine/engine_vis_interact.h"
 #include "engine/engine_vis_visualize.h"
+
+#ifdef MEMORY_SANITIZER
+  #include <sanitizer/msan_interface.h>
+#endif
 
 // this source file needs to treat XMJV differently from other X macros
 #undef XMJV
@@ -115,7 +118,7 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
 
   // should not occur
   if (ptr - (char*)scnstate->buffer != scnstate->nbuffer) {
-    mju_error("Unexpected error: mjvSceneState buffer is not fully used");
+    mjERROR("mjvSceneState buffer is not fully used");
   }
 
   mjv_makeScene(m, &scnstate->plugincache, maxgeom);
@@ -138,8 +141,8 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
     memset(m, 0, sizeof(mjModel));
 
 #ifdef MEMORY_SANITIZER
-  // Tell msan to treat the entire buffer as uninitialized
-  __msan_allocated_memory(m, sizeof(mjModel));
+    // Tell msan to treat the entire buffer as uninitialized
+    __msan_allocated_memory(m, sizeof(mjModel));
 #endif
 
 #define X(var)
@@ -163,8 +166,8 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
     memset(d, 0, sizeof(mjData));
 
 #ifdef MEMORY_SANITIZER
-  // Tell msan to treat the entire buffer as uninitialized
-  __msan_allocated_memory(d, sizeof(mjData));
+    // Tell msan to treat the entire buffer as uninitialized
+    __msan_allocated_memory(d, sizeof(mjData));
 #endif
 
     memcpy(d->warning, scnstate->data.warning, sizeof(d->warning));
@@ -233,7 +236,7 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
 #define X(var)
 #define XMJV(var)                      \
   if (scnstate->model.var != m->var) { \
-    mju_error("m->%s changed", #var);  \
+    mjERROR("m->%s changed", #var);  \
   }
   MJMODEL_INTS
 #undef XMJV
@@ -244,11 +247,11 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
     // iterate over plugins, call visualize if defined
-    for (int i=0; i<m->nplugin; i++) {
+    for (int i=0; i < m->nplugin; i++) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error("invalid plugin slot: %d", slot);
+        mjERROR("invalid plugin slot: %d", slot);
       }
       if (plugin->visualize) {
         plugin->visualize(m, d, opt, &scnstate->plugincache, i);

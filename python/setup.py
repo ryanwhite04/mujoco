@@ -32,7 +32,7 @@ from setuptools import setup
 from setuptools.command import build_ext
 from setuptools.command import install_scripts
 
-__version__ = '2.3.5'
+__version__ = '2.3.6'
 
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
@@ -349,7 +349,7 @@ def find_data_files(package_dir, patterns):
 SETUP_KWARGS = dict(
     name='mujoco',
     version=__version__,
-    author='DeepMind',
+    author='Google DeepMind',
     author_email='mujoco@deepmind.com',
     description='MuJoCo Physics Simulator',
     long_description=get_long_description(),

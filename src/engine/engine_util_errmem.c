@@ -27,6 +27,7 @@
 
 #include "engine/engine_array_safety.h"
 #include "engine/engine_macro.h"
+
 //------------------------- cross-platform aligned malloc/free -------------------------------------
 
 static inline void* mju_alignedMalloc(size_t size, size_t align) {
@@ -122,23 +123,18 @@ void mju_writeLog(const char* type, const char* msg) {
   }
 }
 
-
-// write message to logfile and console, pause and exit
-void mju_error(const char* msg, ...) {
+void mju_error_v(const char* msg, va_list args) {
   char errmsg[1000];
 
   // Format msg into errmsg
-  va_list args;
-  va_start(args, msg);
   vsnprintf(errmsg, mjSIZEOFARRAY(errmsg), msg, args);
-  va_end(args);
 
   if (_mjPRIVATE_tls_error_fn) {
     _mjPRIVATE_tls_error_fn(errmsg);
   } else if (mju_user_error) {
     mju_user_error(errmsg);
   } else {
-     // write to log and console
+    // write to log and console
     mju_writeLog("ERROR", errmsg);
     printf("ERROR: %s\n\nPress Enter to exit ...", errmsg);
 
@@ -147,6 +143,16 @@ void mju_error(const char* msg, ...) {
     exit(EXIT_FAILURE);
   }
 }
+
+
+// write message to logfile and console, pause and exit
+void mju_error(const char* msg, ...) {
+  va_list args;
+  va_start(args, msg);
+  mju_error_v(msg, args);
+  va_end(args);
+}
+
 
 
 // write message to logfile and console

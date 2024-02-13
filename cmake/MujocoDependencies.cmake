@@ -14,10 +14,6 @@
 
 # Build configuration for third party libraries used in MuJoCo.
 
-# Override the BUILD_SHARED_LIBS setting, just for building third party libs (since we always want
-# static libraries). The ccd CMakeLists.txt doesn't expose an option to build a static ccd library,
-# unless BUILD_SHARED_LIBS is set.
-
 set(MUJOCO_DEP_VERSION_lodepng
     b4ed2cd7ecf61d29076169b49199371456d4f90b
     CACHE STRING "Version of `lodepng` to be fetched."
@@ -30,6 +26,10 @@ set(MUJOCO_DEP_VERSION_tinyobjloader
     1421a10d6ed9742f5b2c1766d22faa6cfbc56248
     CACHE STRING "Version of `tinyobjloader` to be fetched."
 )
+set(MUJOCO_DEP_VERSION_MarchingCubeCpp
+    5b79e5d6bded086a0abe276a4b5a69fc17ae9bf1
+    CACHE STRING "Version of `MarchingCubeCpp` to be fetched."
+)
 set(MUJOCO_DEP_VERSION_ccd
     7931e764a19ef6b21b443376c699bbc9c6d4fba8 # v2.1
     CACHE STRING "Version of `ccd` to be fetched."
@@ -39,26 +39,32 @@ set(MUJOCO_DEP_VERSION_qhull
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
-    b378014fef017a829fb42c7fad15f3764bfb8ef9
+    e8515f78ac098329ab9f8cab21c87caede090a3f
     CACHE STRING "Version of `Eigen3` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_abseil
-    b971ac5250ea8de900eae9f95e06548d14cd95fe # LTS 20230125.2
+    fb3621f4f897824c0dbe0615fa94543df6192f30 # LTS 20230802.1
     CACHE STRING "Version of `abseil` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_gtest
-    b796f7d44681514f58a683a3a71ff17c94edb0c1 # v1.13.0
+    f8d7d77c06936315286eb55f8de22cd23c188571 # v1.14.0
     CACHE STRING "Version of `gtest` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_benchmark
-    d572f4777349d43653b21d6c2fc63020ab326db2 # v1.7.1
+    344117638c8ff7e239044fd0fa7085839fc03021 # v1.8.3
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 
+set(MUJOCO_DEP_VERSION_sdflib
+    7c49cfba9bbec763b5d0f7b90b26555f3dde8088
+    CACHE STRING "Version of `SdfLib` to be fetched."
+)
+
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
+mark_as_advanced(MUJOCO_DEP_VERSION_MarchingCubeCpp)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyxml2)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyobjloader)
 mark_as_advanced(MUJOCO_DEP_VERSION_ccd)
@@ -67,9 +73,14 @@ mark_as_advanced(MUJOCO_DEP_VERSION_Eigen3)
 mark_as_advanced(MUJOCO_DEP_VERSION_abseil)
 mark_as_advanced(MUJOCO_DEP_VERSION_gtest)
 mark_as_advanced(MUJOCO_DEP_VERSION_benchmark)
+mark_as_advanced(MUJOCO_DEP_VERSION_sdflib)
 
 include(FetchContent)
 include(FindOrFetch)
+
+# Override the BUILD_SHARED_LIBS setting, just for building third party libs (since we always want
+# static libraries). The ccd CMakeLists.txt doesn't expose an option to build a static ccd library,
+# unless BUILD_SHARED_LIBS is set.
 
 # We force all the dependencies to be compiled as static libraries.
 # TODO(fraromano) Revisit this choice when adding support for install.
@@ -96,6 +107,20 @@ if(NOT TARGET lodepng)
     target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
     target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
     target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+  endif()
+endif()
+
+if(NOT TARGET marchingcubecpp)
+  FetchContent_Declare(
+    marchingcubecpp
+    GIT_REPOSITORY https://github.com/aparis69/MarchingCubeCpp.git
+    GIT_TAG ${MUJOCO_DEP_VERSION_MarchingCubeCpp}
+  )
+
+  FetchContent_GetProperties(marchingcubecpp)
+  if(NOT marchingcubecpp_POPULATED)
+    FetchContent_Populate(marchingcubecpp)
+    include_directories(${marchingcubecpp_SOURCE_DIR})
   endif()
 endif()
 
@@ -158,6 +183,27 @@ findorfetch(
   tinyobjloader
   EXCLUDE_FROM_ALL
 )
+
+option(SDFLIB_USE_ASSIMP OFF)
+option(SDFLIB_USE_OPENMP OFF)
+option(SDFLIB_USE_ENOKI OFF)
+findorfetch(
+  USE_SYSTEM_PACKAGE
+  OFF
+  PACKAGE_NAME
+  sdflib
+  LIBRARY_NAME
+  sdflib
+  GIT_REPO
+  https://github.com/UPC-ViRVIG/SdfLib.git
+  GIT_TAG
+  ${MUJOCO_DEP_VERSION_sdflib}
+  TARGETS
+  SdfLib
+  EXCLUDE_FROM_ALL
+)
+target_compile_options(SdfLib PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+target_link_options(SdfLib PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
 set(ENABLE_DOUBLE_PRECISION ON)
 set(CCD_HIDE_ALL_SYMBOLS ON)

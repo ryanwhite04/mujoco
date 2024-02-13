@@ -17,12 +17,14 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 
 //------------------------------ tendons and actuators ---------------------------------------------
 
@@ -39,13 +41,31 @@ MJAPI mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
 MJAPI mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],
                             mjtNum acc0, const mjtNum prm[9]);
 
-// muscle activation dynamics, prm = (tau_act, tau_deact)
-MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[2]);
+// muscle time constant with optional smoothing
+MJAPI mjtNum mju_muscleDynamicsTimescale(mjtNum dctrl, mjtNum tau_act, mjtNum tau_deact,
+                                         mjtNum smoothing_width);
+
+// muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width)
+MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
 // all 3 semi-axes of a geom
 MJAPI void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]);
 
-//------------------------------ misclellaneous ----------------------------------------------------
+// ----------------------------- Base64 -----------------------------------------------------------
+
+// encode data as Base64 into buf (including padding and null char)
+// returns number of chars written in buf: 4 * [(ndata + 2) / 3] + 1
+MJAPI size_t mju_encodeBase64(char* buf, const uint8_t* data, size_t ndata);
+
+// return size in decoded bytes if s is a valid Base64 encoding
+// return 0 if s is empty or invalid Base64 encoding
+MJAPI size_t mju_isValidBase64(const char* s);
+
+// decode valid Base64 in string s into buf, undefined behavior if s is not valid Base64
+// returns number of bytes decoded (upper limit of 3 * (strlen(s) / 4))
+MJAPI size_t mju_decodeBase64(uint8_t* buf, const char* s);
+
+//------------------------------ miscellaneous ----------------------------------------------------
 
 // convert contact force to pyramid representation
 MJAPI void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force,
@@ -99,6 +119,15 @@ MJAPI int mju_isBad(mjtNum x);
 // return 1 if all elements are 0
 MJAPI int mju_isZero(mjtNum* vec, int n);
 
+// set integer vector to 0
+MJAPI void mju_zeroInt(int* res, int n);
+
+// set size_t vector to 0
+MJAPI void mju_zeroSizeT(size_t* res, size_t n);
+
+// copy int vector vec into res
+MJAPI void mju_copyInt(int* res, const int* vec, int n);
+
 // standard normal random number generator (optional second number)
 MJAPI mjtNum mju_standardNormal(mjtNum* num2);
 
@@ -123,10 +152,14 @@ MJAPI void mju_insertionSortInt(int* list, int n);
 // Halton sequence
 MJAPI mjtNum mju_Halton(int index, int base);
 
-// Call strncpy, then set dst[n-1] = 0.
+// call strncpy, then set dst[n-1] = 0
 MJAPI char* mju_strncpy(char *dst, const char *src, int n);
 
-// Sigmoid function over 0<=x<=1 constructed from half-quadratics.
+// assemble full filename from directory and filename, return 0 on success
+MJAPI int mju_makefullname(char* full, size_t nfull,
+                           const char* dir, const char* file);
+
+// sigmoid function over 0<=x<=1 using quintic polynomial
 MJAPI mjtNum mju_sigmoid(mjtNum x);
 
 #ifdef __cplusplus

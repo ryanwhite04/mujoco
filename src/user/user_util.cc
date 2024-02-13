@@ -18,11 +18,14 @@
 #include <cstddef>
 #include <cstdio>
 #include <limits>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include <mujoco/mjtnum.h>
-#include "engine/engine_macro.h"
+#include <mujoco/mujoco.h>
+#include "engine/engine_crossplatform.h"
+#include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 
 using std::isnan;
@@ -440,9 +443,9 @@ void mjuu_offcenter(double* res, const double mass, const double* vec) {
 void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double scl) {
   // compute equivalent box
   double equivbox[3];
-  equivbox[0] = sqrt(mjMAX(mjMINVAL, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
-  equivbox[1] = sqrt(mjMAX(mjMINVAL, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
-  equivbox[2] = sqrt(mjMAX(mjMINVAL, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
+  equivbox[0] = sqrt(mju_max(mjMINVAL, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
+  equivbox[1] = sqrt(mju_max(mjMINVAL, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
+  equivbox[2] = sqrt(mju_max(mjMINVAL, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
 
   // apply formula for box (or rather cross) viscosity
 
@@ -558,6 +561,12 @@ bool mjuu_isabspath(string path) {
     return false;
   }
 
+  // path is scheme:filename which we consider an absolute path
+  // e.g. file URI's are always absolute paths
+  if (mjp_getResourceProvider(path.c_str()) != nullptr) {
+    return true;
+  }
+
   // check first char
   const char* str = path.c_str();
   if (str[0]=='\\' || str[0]=='/') {
@@ -572,25 +581,6 @@ bool mjuu_isabspath(string path) {
   return false;
 }
 
-
-// get directory path of file
-string mjuu_getfiledir(string filename) {
-  // no filename
-  if (filename.empty()) {
-    return "";
-  }
-
-  // find last pathsymbol
-  size_t last = filename.find_last_of("/\\");
-
-  // no pathsymbol: unknown dir
-  if (last==string::npos) {
-    return "";
-  }
-
-  // extract path from filename
-  return filename.substr(0, last+1);
-}
 
 
 // assemble full filename
@@ -607,4 +597,85 @@ string mjuu_makefullname(string filedir, string meshdir, string filename) {
 
   // default
   return filedir + meshdir + filename;
+}
+
+
+// return true if the text is in a valid content type format:
+// {type}/{subtype}[;{parameter}={value}]
+static bool mjuu_isValidContentType(std::string_view text) {
+  // find a forward slash that's not the last character
+  size_t n = text.find('/');
+  if (n == std::string::npos || n == text.size() - 1) {
+    return false;
+  }
+
+  size_t m = text.find(';');
+  if (m == std::string::npos) {
+    return true;
+  }
+
+  if (m + 1 <= n) {
+    return false;
+  }
+
+  // just check if there's an equal sign; this isn't robust enough for general
+  // validation, but works for our scope, hence this is a private helper
+  // function
+  size_t s = text.find('=');
+  if (s == std::string::npos || s + 1 <= m) {
+    return false;
+  }
+
+  return true;
+}
+
+
+
+// return type from content_type format {type}/{subtype}[;{parameter}={value}]
+// return empty string on invalid format
+std::optional<std::string_view> mjuu_parseContentTypeAttrType(std::string_view text) {
+  if (!mjuu_isValidContentType(text)) {
+    return std::nullopt;
+  }
+
+  return { text.substr(0, text.find('/')) };
+}
+
+
+
+// return subtype from content_type format {type}/{subtype}[;{parameter}={value}]
+// return empty string on invalid format
+std::optional<std::string_view> mjuu_parseContentTypeAttrSubtype(std::string_view text) {
+  if (!mjuu_isValidContentType(text)) {
+    return std::nullopt;
+  }
+
+  size_t n = text.find('/');
+  size_t m = text.find(';', n + 1);
+  if (m == std::string::npos) {
+    return { text.substr(n+1) };
+  }
+
+  return { text.substr(n + 1, m - n - 1) };
+}
+
+
+
+// convert filename extension to content type; return empty string if not found
+std::string mjuu_extToContentType(std::string_view filename) {
+  std::string ext = mjuu_getext(filename);
+
+  if (!strcasecmp(ext.c_str(), ".stl")) {
+    return "model/stl";
+  } else if (!strcasecmp(ext.c_str(), ".obj")) {
+    return "model/obj";
+  } else if (!strcasecmp(ext.c_str(), ".ply")) {
+    return "model/ply";
+  } else if (!strcasecmp(ext.c_str(), ".msh")) {
+    return "model/vnd.mujoco.msh";
+  } else if (!strcasecmp(ext.c_str(), ".png")) {
+    return "image/png";
+  } else {
+    return "";
+  }
 }

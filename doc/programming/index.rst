@@ -30,6 +30,10 @@ OpenGL renderer
    The renderer is written in C and is based on fixed-function OpenGL. It does not have all the features of
    state-of-the-art rendering engines (and can be replaced with such an engine if desired) but nevertheless it provides
    efficient and informative 3D rendering.
+Thread
+   The Threading framework (new in MuJoCo 3.0) is written in C++ and exposed in C. It provides a ThreadPool interface
+   to process Tasks asynchronously. To enable use in MuJoCo, create a ThreadPool and assign it to the thread_pool field
+   in mjData.
 UI framework
    The UI framework (new in MuJoCo 2.0) is written in C. UI elements are rendered in OpenGL. It has its own event
    mechanism and abstract hooks for keyboard and mouse input. The code samples use it with GLFW, but it can also be used
@@ -42,8 +46,8 @@ Getting started
 
 MuJoCo is an open-source project. Pre-built dynamic libraries are available for x86_64 and arm64 machines running
 Windows, Linux, and macOS. These can be downloaded from the `GitHub Releases page
-<https://github.com/deepmind/mujoco/releases>`_. Users who do not intend to develop or modify core MuJoCo code are
-encouraged to use our pre-built libraries, as these come bundled with the same versions of dependencies that we
+<https://github.com/google-deepmind/mujoco/releases>`_. Users who do not intend to develop or modify core MuJoCo code
+are encouraged to use our pre-built libraries, as these come bundled with the same versions of dependencies that we
 regularly test against, and benefit from build flags that have been tuned for performance. Our pre-built libraries are
 almost entirely self-contained and do not require any other library to be present, outside the standard C runtime. We
 also hide all symbols apart from those that form MuJoCo's public API, thus ensuring that it can coexist with any other
@@ -55,8 +59,8 @@ now run the precompiled code samples, for example:
 
 .. code-block:: Text
 
-     Windows:           simulate ..\model\humanoid.xml
-     Linux and macOS:   ./simulate ../model/humanoid.xml
+     Windows:           simulate ..\model\humanoid\humanoid.xml
+     Linux and macOS:   ./simulate ../model/humanoid/humanoid.xml
 
 The directory structure is shown below. Users can re-organize it if needed, as well as install the dynamic libraries in
 other directories and set the path accordingly. The only file created automatically is MUJOCO_LOG.TXT in the executable
@@ -72,10 +76,10 @@ directory; it contains error and warning messages, and can be deleted at any tim
 
 After verifying that the simulator works, you may also want to re-compile the code samples to ensure that you have a
 working development environment. We provide Makefiles for `Windows
-<https://github.com/deepmind/mujoco/blob/main/sample/Makefile.windows>`_, `macOS
-<https://github.com/deepmind/mujoco/blob/main/sample/Makefile.macos>`_, and `Linux
-<https://github.com/deepmind/mujoco/blob/main/sample/Makefile>`_, and also a cross-platform `CMake
-<https://github.com/deepmind/mujoco/blob/main/sample/CMakeLists.txt>`_ setup that can be used to build sample
+<https://github.com/google-deepmind/mujoco/blob/main/sample/Makefile.windows>`_, `macOS
+<https://github.com/google-deepmind/mujoco/blob/main/sample/Makefile.macos>`_, and `Linux
+<https://github.com/google-deepmind/mujoco/blob/main/sample/Makefile>`_, and also a cross-platform `CMake
+<https://github.com/google-deepmind/mujoco/blob/main/sample/CMakeLists.txt>`_ setup that can be used to build sample
 applications independently of the MuJoCo library itself. If you are using the vanilla Makefile, we assume that you are
 using Visual Studio on Windows and LLVM/Clang on Linux. On Windows, you also need to either open a Visual Studio command
 prompt with native x64 tools or call the ``vcvarsall.bat`` script that comes with your MSVC installation to set up the
@@ -99,15 +103,15 @@ provides an example for this.
 
 .. _inBuild:
 
-Building MuJoCo from source
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Building from source
+~~~~~~~~~~~~~~~~~~~~
 
 To build MuJoCo from source, you will need CMake and a working C++17 compiler installed. The steps are:
 
-  #. Clone the ``mujoco`` repository from GitHub.
-  #. Create a new build directory somewhere, and ``cd`` into it.
-  #. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
-  #. Run ``cmake --build .`` to build.
+ #. Clone the ``mujoco`` repository from GitHub.
+ #. Create a new build directory somewhere, and ``cd`` into it.
+ #. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
+ #. Run ``cmake --build .`` to build.
 
 MuJoCo's build system automatically fetches dependencies from upstream repositories over the Internet using CMake's
 `FetchContent <https://cmake.org/cmake/help/latest/module/FetchContent.html>`_ module.
@@ -117,11 +121,18 @@ bindings are not built. Those come with their own build instructions, which can 
 section of the documentation.
 
 Additionally, the CMake setup also implements an installation phase which will copy and organize the output files to a
-target directory. Specify the directory using ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``.
-After successfully building MuJoCo following the instructions above, you can install it using ``cmake --install .``.
+target directory.
 
-As a reference, a working build configuration can be found in MuJoCo's
-[continuous integration setup](https://github.com/deepmind/mujoco/blob/main/.github/workflows/build.yml) on GitHub.
+ 5. Select the directory: ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``
+ #. After building, install with ``cmake --install .``
+
+When building on Windows, use Visual Studio 2019 or later and make sure Windows SDK version 10.0.22000 or later is
+installed (see `here <https://github.com/google-deepmind/mujoco/issues/862>`__ for more details).
+
+.. tip::
+   As a reference, a working build configuration can be found in MuJoCo's
+   `continuous integration setup <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on
+   GitHub.
 
 .. _inHeader:
 
@@ -131,33 +142,37 @@ Header files
 The distribution contains several header files which are identical on all platforms. They are also available from the
 links below, to make this documentation self-contained.
 
-mujoco.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
+`mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
-   global variables, and includes the next 5 files which provide the necessary type definitions.
-mjmodel.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
+   global variables, and includes the all other header files except mjxmacro.h.
+`mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.
-mjdata.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__
+`mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__
    Defines the C structure :ref:`mjData` which is the workspace where all computations
    read their inputs and write their outputs. It also defines primitive types and other structures needed to define
    mjData.
-mjvisualize.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`__
+`mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`__
    Defines the primitive types and structures needed by the abstract visualizer.
-mjrender.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__
+`mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__
    Defines the primitive types and structures needed by the OpenGL renderer.
-mjui.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__
+`mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__
    Defines the primitive types and structures needed by the UI framework.
-mjtnum.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
+`mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
    Defines MuJoCo's ``mjtNum`` floating-point type to be either ``double`` or ``float``. See :ref:`mjtNum`.
-mjxmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
+`mjmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__
+   Defines C macros that are useful in user code.
+`mjxmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
    This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
    automate the mapping of mjModel and mjData into scripting languages, as well as other operations that require
-   accessing all fields of mjModel and mjData. See code sample :ref:`testxml.cc <saTestXML>`.
-mjexport.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
+   accessing all fields of mjModel and mjData.
+`mjexport.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
    Macros used for exporting public symbols from the MuJoCo library. This header should not be used directly by client
    code.
-mjplugin.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
+`mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
    Defines data structures required by :ref:`engine plugins<exPlugin>`.
+`mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`__
+   Defines data structures and functions required by :ref:`thread<Thread>`.
 
 .. _inVersion:
 
@@ -197,40 +212,40 @@ Naming convention
 All symbols defined in the API start with the prefix "mj". The character after "mj" in the prefix determines the family
 to which the symbol belongs. First we list the prefixes corresponding to type definitions.
 
-mj
+``mj``
    Core simulation data structure (C struct), for example :ref:`mjModel`. If all characters
    after the prefix are capital, for example :ref:`mjMIN`, this is a macro or a symbol (#define).
-mjt
+``mjt``
    Primitive type, for example :ref:`mjtGeom`. Except for mjtByte and mjtNum, all other
    definitions in this family are enums.
-mjf
+``mjf``
    Callback function type, for example :ref:`mjfGeneric`.
-mjv
+``mjv``
    Data structure related to abstract visualization, for example :ref:`mjvCamera`.
-mjr
+``mjr``
    Data structure related to OpenGL rendering, for example :ref:`mjrContext`.
-mjui
+``mjui``
    Data structure related to UI framework, for example :ref:`mjuiSection`.
 
 Next we list the prefixes corresponding to function definitions. Note that function prefixes always end with underscore.
 
-mj\_
+``mj_``
    Core simulation function, for example :ref:`mj_step`. Almost all such functions have
    pointers to mjModel and mjData as their first two arguments, possibly followed by other arguments. They usually write
    their outputs to mjData.
-mju\_
+``mju_``
    Utility function, for example :ref:`mju_mulMatVec`. These functions are self-contained
    in the sense that they do not have mjModel and mjData pointers as their arguments.
-mjv\_
+``mjv_``
    Function related to abstract visualization, for example :ref:`mjv_updateScene`.
-mjr\_
+``mjr_``
    Function related to OpenGL rendering, for example :ref:`mjr_render`.
-mjui\_
+``mjui_``
    Function related to UI framework, for example :ref:`mjui_update`.
-mjcb\_
+``mjcb_``
    Global callback function pointer, for example :ref:`mjcb_control`. The user can install
    custom callbacks by setting these global pointers to user-defined functions.
-mjd\_
+``mjd_``
    Functions for computing derivatives, for example :ref:`mjd_transitionFD`.
 
 .. _inOpenGL:
@@ -258,7 +273,7 @@ now lazily resolved at runtime after the switch to GLAD, the "nogl" libraries ar
 .. toctree::
     :hidden:
 
-    samples
     simulation
     visualization
+    samples
     extension

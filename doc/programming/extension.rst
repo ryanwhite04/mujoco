@@ -3,8 +3,8 @@
 Extensions
 ----------
 
-This section describes MuJoCo's mechanisms for user-authored extensions. At present, extensibility is provided only
-via **engine plugins**.
+This section describes MuJoCo's mechanisms for user-authored extensions. At present, extensibility is provided by
+via :ref:`engine plugins<exPlugin>` and :ref:`resource providers<exProvider>`.
 
 .. _exPlugin:
 
@@ -84,6 +84,7 @@ supported plugin capabilities are:
 * Actuator plugin
 * Sensor plugin
 * Passive force plugin
+* Signed distance field plugin
 
 Additional capabilities will be added in the future as required.
 
@@ -234,10 +235,10 @@ provided for this scan-and-load use case.
 Writing plugins
 ^^^^^^^^^^^^^^^
 
-This section, targeted at developers, is not yet written. We encourage people who wish to write their own plugins
+This section, targeted at developers, is incomplete. We encourage people who wish to write their own plugins
 to contact the MuJoCo development team for help. A good starting point for experienced developers is the
-`associated tests <https://github.com/deepmind/mujoco/blob/main/test/engine/engine_plugin_test.cc>`_ and the first-party
-plugins in the `first-party plugin directory <https://github.com/deepmind/mujoco/tree/main/plugin>`_.
+`associated tests <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_plugin_test.cc>`_ and the
+first-party plugins in the `first-party plugin directory <https://github.com/google-deepmind/mujoco/tree/main/plugin>`_.
 
 A future version of this section will include:
 
@@ -246,3 +247,184 @@ A future version of this section will include:
 * How to declare custom MJCF attributes for a plugin.
 * Things that developers need to keep in mind in order to ensure that plugins function correctly when :ref:`mjData` is
   copied, stepped, or reset.
+
+Currently, there are three directories of first-party plugins:
+
+* **elasticity:** The plugins in the `elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__
+  directory are passive forces based on continuum mechanics for 1-dimensional and 3-dimensional bodies. The
+  1D model is invariant under rotations and captures the large deformation of elastic cables, decoupling twisting and
+  bending strains. The 3D solid is a
+  `Saint Venant-Kirchhoff <https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__
+  model discretized with piecewise linear finite elements, which is suitable for large deformations with small strains.
+  See also :ref:`composite <CComposite>` and :ref:`deformable <CDeformable>` objects.
+* **sensor:** The plugins in the `sensor/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sensor>`__
+  directory implement custom sensors. Currently the sole sensor plugin is the touch grid sensor, see the
+  `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`__ for details.
+* **sdf:** The plugins in the `sdf/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sdf>`__
+  directory specify custom shapes in a mesh-free manner, by defining methods computing a signed distance field and its
+  gradient at query points. This shape then acts as a new geom type in the collision table at the top of
+  `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
+
+  Collision points are found by minimizing the maximum of the two colliding SDFs via gradient descent.
+  Because SDFs are non-convex, multiple starting points are required in order to converge to multiple local minima.
+  The number of starting points is set using :ref:`sdf_initpoints<option-sdf_initpoints>`, and are
+  initialized using the Halton sequence inside the intersection of the axis-aligned bounding boxes.
+  The number of gradient descent iterations is set using :ref:`sdf_iterations<option-sdf_iterations>`.
+
+  While *exact* SDFs---encoding the precise signed distance to the surface---are preferred, collisions are possible with
+  any function whose value vanishes at the surface and grows monotonically away from it, with a negative sign in the
+  interior. For such functions, it is still possible to find collisons, albeit with a possibly
+  increased number of starting points.
+
+  The ``sdf_distance`` method is called by the compiler to produce a visual mesh for rendering using the marching cubes
+  algorithm implemented by `MarchingCubeCpp <https://github.com/aparis69/MarchingCubeCpp>`__.
+
+  Future improvement to the gradient descent algorithm, such as a line search which takes advantage of the properties of
+  SDFs, might reduce the number of iterations and/or starting points.
+
+For the sdf plugin, the following methods need to be specified
+
+``sdf_distance``:
+  Returns the signed distance of the query point given in local coordinates.
+
+``sdf_staticdistance``:
+  This is the static version of the previous function, taking config attributes as additional inputs. This function is
+  required because mesh creation occurs during model compilation before the plugin object has been instantiated.
+
+``sdf_gradient``:
+  Computes the gradient in local coodinates of the SDF at the query point.
+
+``sdf_aabb``:
+  Computes the axis-aligned bounding box in local coordinates. This volume is voxelized uniformly before the call to
+  the marching cubes algorithm.
+
+.. _exProvider:
+
+Resource providers
+~~~~~~~~~~~~~~~~~~
+
+Resource providers extend MuJoCo to load assets (XML files, meshes, textures, and etc.) that don't necessarily come from
+the OS filesystem or the Virtual File System (:ref:`mjVFS`). For example, downloading assets from the Internet could be
+implemented as a resource provider. These extensions are handled abstractly in MuJoCo via the :ref:`mjResource` struct.
+
+.. _exProviderStructure:
+
+Overview
+^^^^^^^^
+
+Creating a new resource provider works by registering a :ref:`mjpResourceProvider` struct via
+:ref:`mjp_registerResourceProvider` in a global table. Once a resource provider is registered it can be used by all
+loading functions. The :ref:`mjpResourceProvider` struct stores three types of fields:
+
+.. _Uniform Resource Identifier: https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
+
+Resource prefix
+
+  Resources are identified by prefixes in their name. The chosen prefix should have a valid `Uniform Resource
+  Identifier`_ (URI) scheme syntax. Resource names should also have a valid URI syntax, however this isn't enforced. A
+  resource name with the syntax ``{prefix}:{filename}`` will match a provider using the scheme ``prefix``.  For
+  instance, a resource provider accessing assets via the Internet might use ``http`` as its scheme. In this case a
+  resource with the name ``http://www.example.com/myasset.obj`` would match against this resource provider. Schemes are
+  case-insensitive so that ``HTTP://www.example.com/myasset.obj`` will also match. Note the importance of the colon.
+  URI syntax requires that a colon follows the prefix in a resource name in order to match against a scheme. For example
+  ``https://www.example.com/myasset.obj`` would NOT be a match since the scheme is designated as ``https``.
+
+Callbacks
+  There are three callbacks that a resource provider is required to implement: :ref:`open<mjfOpenResource>`,
+  :ref:`read<mjfReadResource>`, and :ref:`close<mjfCloseResource>`. The other two callback
+  :ref:`getdir<mjfGetResourceDir>` and :ref:`modified<mjfResourceModified>` are optional. More details on these callbacks
+  are given below.
+
+Data Pointer
+  Lastly, there's an opaque data pointer for the provider to pass data into the callbacks. This data pointer is constant
+  within a given model.
+
+Resource providers work via callbacks:
+
+- :ref:`mjfOpenResource<mjfOpenResource>`: The open callback takes a single parameter of type :ref:`mjResource`.  The
+  name field of the resource should be used to verify that the resource exists and populate the resource data field with
+  any extra information needed for the resource. On failure this callback should return 0 (false) or else 1 (true).
+- :ref:`mjfReadResource<mjfReadResource>`: The read callback takes as arguments a :ref:`mjResource` and a pointer to a
+  void pointer called the ``buffer``. The read callback should point the ``buffer`` pointer to the location of where the
+  bytes of the resource can be read and return the number of bytes pointed to in the ``buffer``.  On failure, this
+  callback should return -1.
+- :ref:`mjfCloseResource<mjfCloseResource>`: This callback takes a single parameter of type :ref:`mjResource`, and
+  should be used to free any memory allocated in the data field in the supplied resource.
+- :ref:`mjfGetResourceDir<mjfGetResourceDir>`: This callback is optional and is used to extract the directory from a
+  resource name.  For example, the resource name ``http://www.example.com/myasset.obj`` would have
+  ``http://www.example.com/`` as its directory.
+- :ref:`mjfResourceModified<mjfResourceModified>`: This callback is optional and is used to check if an existing
+  opened resource has been modifed from its orginal source.
+
+.. _exProviderUsage:
+
+Usage
+^^^^^
+
+When a resource provider is registered, it can be used immediately to open assets. If the asset filename has a prefix
+that matches with the prefix of a registered provider, then that provider will be used to load the asset.
+
+.. _exProviderExample:
+
+Example
+"""""""
+
+.. _data URI scheme: https://en.wikipedia.org/wiki/Data_URI_scheme
+
+This section provides a basic example of a resource provider that reads from a `data URI scheme`_. First we implement
+the callbacks:
+
+.. code-block:: C
+
+   int data_open_callback(mjResource* resource) {
+     // call some util function to validate
+     if (!is_valid_data_uri(resource->name)) {
+       return 0; // return failure
+     }
+
+     // some upper bound for the data
+     resource->data = mju_malloc(get_data_uri_size(resource->name));
+     if (resource->data == NULL) {
+       return 0; // return failure
+     }
+
+     // fill data from string (some util function)
+     get_data_uri(resource->name, &data);
+   }
+
+   int str_read_callback(mjResource* resource, const void** buffer) {
+     *buffer = resource->data;
+     return get_data_uri_size(resource->name);
+   }
+
+   void str_close_callback(mjResource* resource) {
+     mju_free(resource->data);
+   }
+
+Next we create the resource provider and register it with MuJoCo:
+
+.. code-block:: C
+
+   mjpResourceProvider resourceProvider = {
+     .prefix = "data",
+     .open = str_open_callback,
+     .read = str_read_callback,
+     .close = str_close_callback,
+     .getdir = NULL
+   };
+
+   // return positive number on success
+   if (!mjp_registerResourceProvider(&resourceProvider)) {
+     // ...
+     // return failure
+   }
+
+Now we can write assets as strings in our MJCF files:
+
+.. code-block:: xml
+
+   <asset>
+     <texture name="grid" file="grid.png" type="2d"/>
+     <mesh content-type="model/obj" file="data:model/obj;base65,I215IG9iamVjdA0KdiAxIDAgMA0KdiAwIDEgMA0KdiAwIDAgMQ=="/>
+     ...
+   </asset>

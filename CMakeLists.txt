@@ -114,7 +114,7 @@ target_link_options(
 target_link_libraries(
   mujoco
   PRIVATE ccd
-          lodepng
+          # lodepng
           qhullstatic_r
           tinyobjloader
           tinyxml2

@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "lodepng.h"
+// #include "lodepng.h"
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 
